@@ -18,16 +18,22 @@ let sessionOptions = session({
 app.use(sessionOptions)
 app.use(flash())
 
+// by this line of code we don't need to pass session data manually for every template render
+app.use(function(req, res, next) {
+  res.locals.user = req.session.user
+  next()
+})
+
 const router = require("./router")
 
 app.use(express.urlencoded({ extended: false })) // accepting data by form SUBMIT METHOD
 app.use(express.json()) // accepting data in json
 
-// we are telling express to use public foler for static files
+// we are telling express to use public folder for static files
 app.use(express.static("public"))
 // Here first views is express option, this needs to be exactly named views, second argument is the name of folder
 app.set("views", "views")
-// In this line of code we need to tell express which templating engine we are using to render html
+// In this line of code we need to tell express which template engine we are using to render html
 app.set("view engine", "ejs")
 // using router in the app
 app.use("/", router)
