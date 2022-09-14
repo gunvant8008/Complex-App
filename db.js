@@ -1,5 +1,5 @@
 const dotenv = require("dotenv")
-dotenv.config() // using enviourment variables for sensitive data
+dotenv.config() // using environment variables for sensitive data
 const { MongoClient } = require("mongodb")
 
 const client = new MongoClient(process.env.CONNECTIONSTRING)

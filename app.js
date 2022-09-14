@@ -2,6 +2,8 @@ const express = require("express")
 const session = require("express-session")
 const MongoStore = require("connect-mongo")
 const flash = require("connect-flash")
+const markdown = require("marked")
+const sanitizeHTML = require('sanitize-html')
 // to use express in our app we need this line of code
 const app = express()
 
@@ -20,6 +22,18 @@ app.use(flash())
 
 // by this line of code we don't need to pass session data manually for every template render
 app.use(function(req, res, next) {
+
+  // make our markdown function available from within ejs template
+  // make all error and success flash messages available from all template
+  res.locals.filterUserHTML = function(content) {
+    return sanitizeHTML(markdown.parse(content), {allowedTags: ['p', 'br', 'ul', 'ol', 'li', 'strong', 'bold', 'i', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'], allowedAttributes: []})
+  }
+  res.locals.errors = req.flash('errors')
+  res.locals.success = req.flash('success')
+  // make current user id available on the req object
+  if (req.session.user) {req.visitorId = req.session.user._id} else {req.visitorId = 0}
+
+  // make user session data available from within view templates
   res.locals.user = req.session.user
   next()
 })
