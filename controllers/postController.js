@@ -16,11 +16,20 @@ exports.create = function(req, res) {
     })
 }
 
+exports.apiCreate = function(req, res) {
+    let post = new Post(req.body, req.apiUser._id)
+    post.create().then(function (newID) {
+        res.json('Congrats.')
+    }).catch(function (errors) {
+       res.json(errors)
+    })
+}
+
 
 exports.viewSingle = async function(req, res) {
    try {
     let post = await Post.findSingleById(req.params.id, req.visitorId)
-    res.render('single-post-screen', {post: post})
+    res.render('single-post-screen', {post: post, title: post.title})
    } catch {
     res.render('404')
    }
@@ -76,6 +85,14 @@ exports.delete = function(req, res) {
     }).catch(() => {
         req.flash('errors', 'You do not have permission to perform that action.')
         req.session.save(() => res.redirect('/'))
+    })
+}
+
+exports.apiDelete = function(req, res) {
+    Post.delete(req.params.id, req.apiUser._id).then(() => {
+       res.json('Success')
+    }).catch(() => {
+        res.json('You do not have permission to perform this action.')
     })
 }
 

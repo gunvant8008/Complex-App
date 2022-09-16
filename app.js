@@ -3,9 +3,18 @@ const session = require("express-session")
 const MongoStore = require("connect-mongo")
 const flash = require("connect-flash")
 const markdown = require("marked")
-const sanitizeHTML = require('sanitize-html')
+const csrf = require('csurf')
 // to use express in our app we need this line of code
 const app = express()
+const sanitizeHTML = require('sanitize-html')
+
+
+
+app.use(express.urlencoded({ extended: false })) // accepting data by form SUBMIT METHOD
+app.use(express.json()) // accepting data in json
+
+app.use('/api', require('./router-api'))
+
 
 let sessionOptions = session({
   secret: "JavaScript is soo cool",
@@ -38,10 +47,8 @@ app.use(function(req, res, next) {
   next()
 })
 
-const router = require("./router")
 
-app.use(express.urlencoded({ extended: false })) // accepting data by form SUBMIT METHOD
-app.use(express.json()) // accepting data in json
+const router = require("./router")
 
 // we are telling express to use public folder for static files
 app.use(express.static("public"))
@@ -49,8 +56,48 @@ app.use(express.static("public"))
 app.set("views", "views")
 // In this line of code we need to tell express which template engine we are using to render html
 app.set("view engine", "ejs")
+
+
+app.use(csrf())
+
+app.use(function (req, res, next) {
+  res.locals.csrfToken = req.csrfToken()
+  next()
+})
+
+
 // using router in the app
 app.use("/", router)
 
+app.use(function(err, req, res, next) {
+  if(err) {
+    if (err.code == "EBADCSRFTOKEN") {
+      req.flash('errors', "Cross site request forgery detected.")
+      req.session.save(() => res.redirect('/'))
+    } else {
+      res.render('404')
+    }
+  }
+})
+
+const server = require('http').createServer(app)
+const io = require('socket.io') (server)
+
+io.use(function(socket, next) {
+  sessionOptions(socket.request, socket.request.res, next)
+})
+
+io.on('connection', function(socket) {
+  if (socket.request.session.user) {
+    let user = socket.request.session.user
+
+    socket.emit('welcome', {username: user.username, avatar: user.avatar})
+
+    socket.on('chatMessageFromBrowser', function(data) {
+    socket.broadcast.emit('chatMessageFromServer', {message: sanitizeHTML(data.message, {allowedTags: [], allowedAttributes: {}}), username: user.username, avatar: user.avatar})
+    })
+  }
+})
+
 // app.listen(3000)
-module.exports = app // rather than listening, we are exporting our app
+module.exports = server // rather than listening, we are exporting our app, then to add chat functionality we changed it to server

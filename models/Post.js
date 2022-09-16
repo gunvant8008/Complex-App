@@ -1,5 +1,6 @@
 
-const postsCollections = require('../db').db().collection('posts')
+const postsCollection = require('../db').db().collection('posts')
+const followsCollection = require('../db').db().collection('follows')
 const ObjectID = require('mongodb').ObjectID
 const User = require('./User')
 const sanitizeHTML = require ('sanitize-html')
@@ -36,7 +37,7 @@ Post.prototype.create = function () {
         this.cleanUp()
         this.validate()
         if (!this.errors.length) {
-            postsCollections.insertOne(this.data).then((info)=> {
+            postsCollection.insertOne(this.data).then((info)=> {
                 resolve(info.insertedId) // insertedID is a mongodb function
             }).catch(() => {
                 this.errors.push('Please try again later.')
@@ -71,7 +72,7 @@ Post.prototype.actuallyUpdate = function () {
         this.cleanUp()
         this.validate()
         if (!this.errors.length) {
-            await postsCollections.findOneAndUpdate({_id: new ObjectID(this.requestedPostId)}, {$set: {title: this.data.title, body: this.data.body}})
+            await postsCollection.findOneAndUpdate({_id: new ObjectID(this.requestedPostId)}, {$set: {title: this.data.title, body: this.data.body}})
             resolve('success')
         } else {
             resolve('failure')
@@ -93,7 +94,7 @@ Post.reusablePostQuery = function (uniqueOperations, visitorId, finalOperations=
             }}
         ]).concat(finalOperations)
 
-        let posts = await postsCollections.aggregate(aggOperations).toArray()
+        let posts = await postsCollection.aggregate(aggOperations).toArray()
 
         // clean up author property in each post object
         posts = posts.map(function (post) {
@@ -142,7 +143,7 @@ Post.delete = function(postIdToDelete, currentUserId) {
         try {
             let post = await Post.findSingleById(postIdToDelete, currentUserId)
             if (post.isVisitorOwner) {
-                await postsCollections.deleteOne({_id: new ObjectID(postIdToDelete)})
+                await postsCollection.deleteOne({_id: new ObjectID(postIdToDelete)})
                 resolve()
             } else {
                 reject()
@@ -164,6 +165,27 @@ Post.search = function(searchTerm) {
             reject()
         }
     })
+}
+
+Post.countPostsByAuthor = function(id) {
+    return new Promise(async(resolve, reject) => {
+        let postCount = await postsCollection.countDocuments({author: id})
+        resolve(postCount)
+    })
+}
+
+Post.getFeed = async function(id) {
+    // create an array of the user ids that the current user follows
+    let followedUsers = await followsCollection.find({authorId: new ObjectID(id)}).toArray()
+    followedUsers = followedUsers.map(function(followDoc) {
+        return followDoc.followedId
+    })
+
+    // look for posts where the author is in the above array of followed users
+    return Post.reusablePostQuery([
+        {$match: {author: {$in: followedUsers}}},
+        {$sort: { createdDate: -1}}
+    ])
 }
 
 module.exports = Post
